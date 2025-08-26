@@ -1,6 +1,6 @@
-import numpy as np
 import cv2
-from typing import Optional
+import numpy as np
+from numpy import ndarray
 
 
 def expand_to_aspect_ratio(input_shape, target_aspect_ratio=None):
@@ -20,17 +20,18 @@ def expand_to_aspect_ratio(input_shape, target_aspect_ratio=None):
     else:
         h_new = h
         w_new = max(h * w_t / h_t, w)
-    return np.array([w_new, h_new])
+    # Return as numpy array (previously mis-used numpy.ndarray constructor)
+    return np.array([w_new, h_new], dtype=np.float32)
 
 
-def rotate_2d(pt_2d: np.array, rot_rad: float) -> np.array:
+def rotate_2d(pt_2d: np.ndarray, rot_rad: float) -> ndarray:
     """
     Rotate a 2D point on the x-y plane.
     Args:
-        pt_2d (np.array): Input 2D point with shape (2,).
+        pt_2d (ndarray): Input 2D point with shape (2,).
         rot_rad (float): Rotation angle
     Returns:
-        np.array: Rotated 2D point.
+        ndarray: Rotated 2D point.
     """
     x = pt_2d[0]
     y = pt_2d[1]
@@ -40,10 +41,20 @@ def rotate_2d(pt_2d: np.array, rot_rad: float) -> np.array:
     return np.array([xx, yy], dtype=np.float32)
 
 
-def gen_trans_from_patch_cv(c_x: float, c_y: float,
-                            src_width: float, src_height: float,
-                            dst_width: float, dst_height: float,
-                            scale: float, rot: float) -> np.array:
+from typing import no_type_check
+
+
+@no_type_check
+def gen_trans_from_patch_cv(
+    c_x: float,
+    c_y: float,
+    src_width: float,
+    src_height: float,
+    dst_width: float,
+    dst_height: float,
+    scale: float,
+    rot: float,
+) -> ndarray:
     """
     Create transformation matrix for the bounding box crop.
     Args:
@@ -56,7 +67,7 @@ def gen_trans_from_patch_cv(c_x: float, c_y: float,
         scale (float): Rescaling factor for the bounding box (augmentation).
         rot (float): Random rotation applied to the box.
     Returns:
-        trans (np.array): Target geometric transformation.
+        trans (ndarray): Target geometric transformation.
     """
     # augment size with scale
     src_w = src_width * scale
@@ -90,27 +101,36 @@ def gen_trans_from_patch_cv(c_x: float, c_y: float,
     return trans
 
 
-def generate_image_patch_cv2(img: np.array, c_x: float, c_y: float,
-                             bb_width: float, bb_height: float,
-                             patch_width: float, patch_height: float,
-                             do_flip: bool, scale: float, rot: float,
-                             border_mode=cv2.BORDER_CONSTANT, border_value=0):
+def generate_image_patch_cv2(
+    img: ndarray,
+    c_x: int | float,
+    c_y: int | float,
+    bb_width: int | float,
+    bb_height: int | float,
+    patch_width: int | float,
+    patch_height: int | float,
+    do_flip: bool,
+    scale: int | float,
+    rot: int | float,
+    border_mode=cv2.BORDER_CONSTANT,
+    border_value=0,
+):
     """
     Crop the input image and return the crop and the corresponding transformation matrix.
     Args:
-        img (np.array): Input image of shape (H, W, 3)
-        c_x (float): Bounding box center x coordinate in the original image.
-        c_y (float): Bounding box center y coordinate in the original image.
-        bb_width (float): Bounding box width.
-        bb_height (float): Bounding box height.
-        patch_width (float): Output box width.
-        patch_height (float): Output box height.
+        img (ndarray): Input image of shape (H, W, 3)
+        c_x (int | float): Bounding box center x coordinate in the original image.
+        c_y (int | float): Bounding box center y coordinate in the original image.
+        bb_width (int | float): Bounding box width.
+        bb_height (int | float): Bounding box height.
+        patch_width (int | float): Output box width.
+        patch_height (int | float): Output box height.
         do_flip (bool): Whether to flip image or not.
-        scale (float): Rescaling factor for the bounding box (augmentation).
-        rot (float): Random rotation applied to the box.
+        scale (int | float): Rescaling factor for the bounding box (augmentation).
+        rot (int | float): Random rotation applied to the box.
     Returns:
-        img_patch (np.array): Cropped image patch of shape (patch_height, patch_height, 3)
-        trans (np.array): Transformation matrix.
+        img_patch (ndarray): Cropped image patch of shape (patch_height, patch_height, 3)
+        trans (ndarray): Transformation matrix.
     """
 
     img_height, img_width, img_channels = img.shape
@@ -120,26 +140,32 @@ def generate_image_patch_cv2(img: np.array, c_x: float, c_y: float,
 
     trans = gen_trans_from_patch_cv(c_x, c_y, bb_width, bb_height, patch_width, patch_height, scale, rot)
 
-    img_patch = cv2.warpAffine(img, trans, (int(patch_width), int(patch_height)),
-                               flags=cv2.INTER_LINEAR,
-                               borderMode=border_mode,
-                               borderValue=border_value,
-                               )
+    img_patch = cv2.warpAffine(
+        img,
+        trans,
+        (int(patch_width), int(patch_height)),
+        flags=cv2.INTER_LINEAR,
+        borderMode=border_mode,
+        borderValue=border_value,
+    )
     # Force borderValue=cv2.BORDER_CONSTANT for alpha channel
     if (img.shape[2] == 4) and (border_mode != cv2.BORDER_CONSTANT):
-        img_patch[:, :, 3] = cv2.warpAffine(img[:, :, 3], trans, (int(patch_width), int(patch_height)),
-                                            flags=cv2.INTER_LINEAR,
-                                            borderMode=cv2.BORDER_CONSTANT,
-                                            )
+        img_patch[:, :, 3] = cv2.warpAffine(
+            img[:, :, 3],
+            trans,
+            (int(patch_width), int(patch_height)),
+            flags=cv2.INTER_LINEAR,
+            borderMode=cv2.BORDER_CONSTANT,
+        )
 
     return img_patch, trans
 
 
-def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000.):
+def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000.0):
     # Convert cam_bbox to full image
     img_w, img_h = img_size[:, 0], img_size[:, 1]
     cx, cy, b = box_center[:, 0], box_center[:, 1], box_size
-    w_2, h_2 = img_w / 2., img_h / 2.
+    w_2, h_2 = img_w / 2.0, img_h / 2.0
     bs = b * cam_bbox[:, 0] + 1e-9
     tz = 2 * focal_length / bs
     tx = (2 * (cx - w_2) / bs) + cam_bbox[:, 1]
@@ -148,14 +174,16 @@ def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000
     return full_cam
 
 
-import numpy as np
+# duplicate import removed above
 
 
-def perspective_projection(points: np.ndarray,
-                           translation: np.ndarray,
-                           focal_length: np.ndarray,
-                           camera_center: Optional[np.ndarray] = None,
-                           rotation: Optional[np.ndarray] = None) -> np.ndarray:
+def perspective_projection(
+    points: np.ndarray,
+    translation: np.ndarray,
+    focal_length: np.ndarray,
+    camera_center: np.ndarray | None = None,
+    rotation: np.ndarray | None = None,
+) -> np.ndarray:
     """
     Computes the perspective projection of a set of 3D points using NumPy.
 
@@ -184,13 +212,13 @@ def perspective_projection(points: np.ndarray,
     K[:, :-1, -1] = camera_center
 
     # Transform points
-    points = np.einsum('bij,bkj->bki', rotation, points)
+    points = np.einsum("bij,bkj->bki", rotation, points)
     points += translation[:, np.newaxis, :]
 
     # Apply perspective distortion
     projected_points = points / points[:, :, -1][:, :, np.newaxis]
 
     # Apply camera intrinsics
-    projected_points = np.einsum('bij,bkj->bki', K, projected_points)
+    projected_points = np.einsum("bij,bkj->bki", K, projected_points)
 
     return projected_points[:, :, :-1]

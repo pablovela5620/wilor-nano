@@ -1,0 +1,94 @@
+[project]
+authors = [{ name = "pablo vela", email = "pablovela5620@gmail.com" }]
+dependencies = [
+    "smplx==0.1.28",
+    "timm",
+    "einops",
+    "ultralytics==8.1.34",
+    "opencv-python",
+    "huggingface_hub",
+    "scikit-image",
+    "roma",
+]
+name = "wilor-nano"
+requires-python = ">= 3.11"
+version = "0.1.0"
+
+[build-system]
+build-backend = "hatchling.build"
+requires = ["hatchling"]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+# CUDA Build Tools
+cuda-compiler = "*"
+cuda-version = "12.8.*"
+cuda-cudart-dev = "*"
+cuda-crt = "*"
+libcusparse-dev = "*"
+cuda-driver-dev = "*"
+cuda-nvcc = "*"
+cuda-nvrtc-dev = "*"
+cuda-nvtx = "*"
+cuda-nvtx-dev = "*"
+cuda-nvml-dev = "*"
+cuda-profiler-api = "*"
+
+# CUDA Libraries
+cudnn = "*"
+libcublas-dev = "*"
+libcudss-dev = "*"
+libcufile-dev = "*"
+libcufft-dev = "*"
+libcurand-dev = "*"
+libcusolver-dev = "*"
+cusparselt = "*"
+libnvjitlink = "*"
+dill = ">=0.4.0,<0.5"
+py-opencv = ">=4.12.0,<5"
+# cuda126 end
+
+[tool.pixi.pypi-dependencies]
+wilor_nano = { path = ".", editable=true }
+simplecv = {git = "https://github.com/pablovela5620/simplecv.git", tag = "v0.5.1"}
+torch = { version = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128" }
+torchvision = { version = ">=0.20.1", index = "https://download.pytorch.org/whl/cu128" }
+
+[tool.pixi.feature.dev.dependencies]
+beartype = ">=0.19.0,<0.20"
+ruff = ">=0.12.7,<0.13"
+
+[tool.pixi.environments]
+dev = { features = ["dev"] }
+
+[tool.ruff]
+line-length = 150
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+
+ignore = [
+    "E501",  # Line too long.
+    "F722",  # Forward annotation false positive from jaxtyping. Should be caught by pyright.
+    "F821",  # Forward annotation false positive from jaxtyping. Should be caught by pyright.
+    "UP037",
+]
