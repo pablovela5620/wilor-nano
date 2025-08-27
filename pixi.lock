@@ -6035,7 +6035,7 @@ packages:
 - pypi: ./
   name: wilor-nano
   version: 0.1.0
-  sha256: 40b2f032b3dede483277b72f65f309158e1b2ba02b61787336358eec52885d4a
+  sha256: ed3140a1966ffc9648f8155063c8fb79dfd8cba6d0e26b7af2864aa31ee7dff9
   requires_dist:
   - timm
   - einops
