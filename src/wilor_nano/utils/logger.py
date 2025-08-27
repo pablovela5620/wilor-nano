@@ -1,5 +1,6 @@
-import platform, sys
 import logging
+import platform
+import sys
 from datetime import datetime, timezone
 
 logging.getLogger("numba").setLevel(logging.WARNING)

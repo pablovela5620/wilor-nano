@@ -19,18 +19,15 @@ class WiLor(nn.Module):
     WiLor for Onnx
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, mano_root_dir: Path, **kwargs):
         super().__init__()
         # Create VIT backbone
         self.backbone = vit(**kwargs)
         # Create RefineNet head
         self.refine_net = RefineNet(feat_dim=1280, upscale=3)
-        mano_model_path = kwargs.get("mano_model_path", "")
-        assert os.path.exists(mano_model_path), f"MANO model {mano_model_path} not exists!"
+        assert os.path.exists(mano_root_dir), f"MANO model {mano_root_dir} not exists!"
         # mano_cfg = {"model_path": mano_model_path, "create_body_pose": False}
-        self.mano: ManoSimpleLayer = ManoSimpleLayer(
-            mano_root=Path("/home/pablo/0Dev/repos/pi0-lerobot/data/mano_clean"), use_pca=False
-        )
+        self.mano: ManoSimpleLayer = ManoSimpleLayer(mano_root=mano_root_dir, use_pca=False)
         self.FOCAL_LENGTH = kwargs.get("focal_length", 5000)
         self.IMAGE_SIZE = kwargs.get("image_size", 256)
         self.IMAGE_MEAN = torch.from_numpy(np.array([0.485, 0.456, 0.406]).reshape(1, 1, 1, 3))

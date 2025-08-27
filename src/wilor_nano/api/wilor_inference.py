@@ -6,11 +6,12 @@ from typing import Literal
 import cv2
 import rerun as rr
 import torch
-from jaxtyping import Int
+from jaxtyping import Int, UInt8
 from numpy import ndarray
 from simplecv.data.skeleton.mediapipe import MEDIAPIPE_ID2NAME, MEDIAPIPE_IDS, MEDIAPIPE_LINKS
 from simplecv.rerun_log_utils import RerunTyroConfig, log_video
 from simplecv.video_io import VideoReader
+from tqdm.auto import tqdm
 
 from wilor_nano.pipelines.wilor_hand_pose3d_estimation_pipeline import WiLorHandPose3dEstimationPipeline
 
@@ -50,9 +51,10 @@ def main(config: WilorConfig):
     # make sure one is not none
     assert config.image_path is not None or config.video_path is not None
     if config.image_path:
-        image = cv2.imread(str(config.image_path))
-        outputs: list[dict] = pipe.predict(image)
-        rr.log("image", rr.Image(image, color_model=rr.ColorModel.BGR))
+        bgr: UInt8[ndarray, "h w 3"] = cv2.imread(str(config.image_path))
+        rgb: UInt8[ndarray, "h w 3"] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+        outputs: list[dict] = pipe.predict(rgb)
+        rr.log("image", rr.Image(rgb, color_model=rr.ColorModel.RGB))
 
         for output in outputs:
             handedness: Literal["left", "right"] = "right" if output["is_right"] == 1.0 else "left"
@@ -72,9 +74,12 @@ def main(config: WilorConfig):
         frame_timestamps_ns: Int[ndarray, "num_frames"] = log_video(
             video_path=config.video_path, video_log_path=Path("video"), timeline="video_time"
         )
-        for ts, bgr in zip(frame_timestamps_ns, video_reader, strict=False):
+        for ts, bgr in zip(
+            tqdm(frame_timestamps_ns, desc="video frames", total=len(frame_timestamps_ns)), video_reader, strict=False
+        ):
             rr.set_time("video_time", duration=1e-9 * ts)
-            outputs: list[dict] = pipe.predict(bgr)
+            rgb: UInt8[ndarray, "h w 3"] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            outputs: list[dict] = pipe.predict(rgb)
             for output in outputs:
                 handedness: Literal["left", "right"] = "right" if output["is_right"] == 1.0 else "left"
                 hand_bbox = output["hand_bbox"]
