@@ -9,6 +9,7 @@ from jaxtyping import Float, Int, Num, UInt8
 from skimage.filters import gaussian
 from tqdm import tqdm
 from ultralytics import YOLO
+from ultralytics.engine.results import Results
 
 from wilor_nano.models.wilor import WiLor
 from wilor_nano.utils import utils
@@ -61,7 +62,7 @@ class WiLorHandPose3dEstimationPipeline:
         self.device = kwargs.get("device", torch.device("cpu"))
         self.dtype = kwargs.get("dtype", torch.float32)
         self.FOCAL_LENGTH = kwargs.get("focal_length", 5000)
-        self.IMAGE_SIZE = 256
+        self.IMAGE_SIZE: int = 256
         self.WILOR_MINI_REPO_ID = hf_repo_id
         wilor_pretrained_dir: Path = Path(kwargs.get("wilor_pretrained_dir", Path(__file__).parent.parent)).resolve()
         wilor_pretrained_dir.mkdir(parents=True, exist_ok=True)
@@ -113,16 +114,17 @@ class WiLorHandPose3dEstimationPipeline:
     @torch.no_grad()
     def predict(
         self,
-        image: UInt8[np.ndarray, "h w 3"],
+        rgb_hw3: UInt8[np.ndarray, "h w 3"],
         hand_conf: float = 0.3,
         rescale_factor: float = 2.5,
     ) -> list[Detection]:
-        detections = self.hand_detector(image, conf=hand_conf, verbose=self.verbose)[0]
+        detections: Results = self.hand_detector(rgb_hw3, conf=hand_conf, verbose=self.verbose)[0]
+
         detect_rets: list[Detection] = []
         bbox_list: list[list[float]] = []
         is_rights: list[int] = []
         for det in detections:
-            hand_bbox = det.boxes.data.cpu().detach().squeeze().numpy()
+            hand_bbox: Float[np.ndarray, "6"] = det.boxes.data.cpu().detach().squeeze().numpy()
             is_rights.append(int(det.boxes.cls.cpu().detach().squeeze().item()))
             bbox_list.append(hand_bbox[:4].tolist())
             detect_rets.append({"hand_bbox": bbox_list[-1], "is_right": is_rights[-1]})
@@ -135,15 +137,15 @@ class WiLorHandPose3dEstimationPipeline:
         center: Float[np.ndarray, "n 2"] = (bboxes[:, 2:4] + bboxes[:, 0:2]) / 2.0
         scale: Float[np.ndarray, "n 2"] = rescale_factor * (bboxes[:, 2:4] - bboxes[:, 0:2])
         img_patches_list: list[np.ndarray] = []
-        img_size: Int[np.ndarray, "2"] = np.array([image.shape[1], image.shape[0]])
+        img_size: Int[np.ndarray, "2"] = np.array([rgb_hw3.shape[1], rgb_hw3.shape[0]])
         for i in tqdm(range(bboxes.shape[0]), disable=not self.verbose):
             bbox_size = scale[i].max()
             patch_width = patch_height = self.IMAGE_SIZE
-            right = is_rights[i]
-            flip = right == 0
+            right: int = is_rights[i]
+            flip: bool = right == 0
             box_center = center[i]
 
-            cvimg = image.copy()
+            cvimg: UInt8[np.ndarray, "h w 3"] = rgb_hw3.copy()
             # Blur image to avoid aliasing artifacts
             downsampling_factor = (bbox_size * 1.0) / patch_width
             downsampling_factor = downsampling_factor / 2.0

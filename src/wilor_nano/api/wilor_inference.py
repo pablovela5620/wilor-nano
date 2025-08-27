@@ -57,21 +57,39 @@ def main(config: WilorConfig):
     if config.image_path:
         bgr: UInt8[ndarray, "h w 3"] = cv2.imread(str(config.image_path))
         rgb: UInt8[ndarray, "h w 3"] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        outputs: list[dict] = pipe.predict(rgb)
         rr.log("image", rr.Image(rgb, color_model=rr.ColorModel.RGB))
-
+        outputs: list[Detection] = pipe.predict(rgb)
         for output in outputs:
             handedness: Literal["left", "right"] = "right" if output["is_right"] == 1.0 else "left"
-            hand_bbox = output["hand_bbox"]
-            hand_keypoints = output["wilor_preds"]["pred_keypoints_2d"]
-            print(output)
-            xyz = output["wilor_preds"]["pred_keypoints_3d"]
-            rr.log(f"{handedness}_xyz", rr.Points3D(positions=xyz))
+            hand_bbox: list[float] = output["hand_bbox"]
+            wilor_preds: WilorPreds = output["wilor_preds"]
+            hand_keypoints: Float[ndarray, "1 n_joints=21 2"] = wilor_preds["pred_keypoints_2d"]
+            xyz: Float[ndarray, "1 n_joints=21 3"] = wilor_preds["pred_keypoints_3d"]
+            rr.log(
+                f"{handedness}_xyz",
+                rr.Points3D(
+                    positions=xyz,
+                    class_ids=0,
+                    keypoint_ids=MEDIAPIPE_IDS,
+                    show_labels=False,
+                    colors=(0, 255, 0),
+                ),
+            )
+
             rr.log(
                 f"image/{handedness}_box",
                 rr.Boxes2D(array=hand_bbox, array_format=rr.Box2DFormat.XYXY, show_labels=True),
             )
-            rr.log(f"image/{handedness}_keypoints", rr.Points2D(positions=hand_keypoints))
+            rr.log(
+                f"image/{handedness}_keypoints",
+                rr.Points2D(
+                    positions=hand_keypoints,
+                    class_ids=0,
+                    keypoint_ids=MEDIAPIPE_IDS,
+                    show_labels=False,
+                    colors=(0, 255, 0),
+                ),
+            )
 
     if config.video_path:
         video_reader = VideoReader(filename=config.video_path)
