@@ -1,10 +1,9 @@
 [project]
 authors = [{ name = "pablo vela", email = "pablovela5620@gmail.com" }]
 dependencies = [
-    "smplx==0.1.28",
     "timm",
     "einops",
-    "ultralytics==8.1.34",
+    "ultralytics==8.3.162", # needed to avoid weights_only bug in pytorch 2.7+
     "opencv-python",
     "huggingface_hub",
     "scikit-image",
