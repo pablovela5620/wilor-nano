@@ -7,11 +7,9 @@ import torch
 from jaxtyping import Float
 from torch import Tensor, nn
 
-# from .mano_wrapper import MANO
 from wilor_nano.mano_pytorch_simple import ManoSimpleLayer
-
-from .refinement_net import RefineNet, RefineNetOutput
-from .vit import vit
+from wilor_nano.models.refinement_net import RefineNet, RefineNetOutput
+from wilor_nano.models.vit import vit
 
 
 class WiLor(nn.Module):

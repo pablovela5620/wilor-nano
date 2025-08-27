@@ -5,14 +5,18 @@ from typing import Literal
 import cv2
 import rerun as rr
 import torch
-from jaxtyping import Int, UInt8
+from jaxtyping import Float, Int, UInt8
 from numpy import ndarray
 from simplecv.data.skeleton.mediapipe import MEDIAPIPE_ID2NAME, MEDIAPIPE_IDS, MEDIAPIPE_LINKS
 from simplecv.rerun_log_utils import RerunTyroConfig, log_video
 from simplecv.video_io import VideoReader
 from tqdm.auto import tqdm
 
-from wilor_nano.pipelines.wilor_hand_pose3d_estimation_pipeline import WiLorHandPose3dEstimationPipeline
+from wilor_nano.pipelines.wilor_hand_pose3d_estimation_pipeline import (
+    Detection,
+    WiLorHandPose3dEstimationPipeline,
+    WilorPreds,
+)
 
 
 @dataclass
@@ -20,6 +24,7 @@ class WilorConfig:
     rr_config: RerunTyroConfig
     image_path: Path | None = None
     video_path: Path | None = None
+    max_frames: int | None = None
 
 
 def set_annotation_context() -> None:
@@ -28,7 +33,7 @@ def set_annotation_context() -> None:
         rr.AnnotationContext(
             [
                 rr.ClassDescription(
-                    info=rr.AnnotationInfo(id=0, label="Coco Wholebody", color=(0, 0, 255)),
+                    info=rr.AnnotationInfo(id=0, label="Hand", color=(0, 0, 255)),
                     keypoint_annotations=[
                         rr.AnnotationInfo(id=id, label=name) for id, name in MEDIAPIPE_ID2NAME.items()
                     ],
@@ -73,17 +78,28 @@ def main(config: WilorConfig):
         frame_timestamps_ns: Int[ndarray, "num_frames"] = log_video(
             video_path=config.video_path, video_log_path=Path("video"), timeline="video_time"
         )
-        for ts, bgr in zip(
-            tqdm(frame_timestamps_ns, desc="video frames", total=len(frame_timestamps_ns)), video_reader, strict=False
+        for ts_idx, (ts, bgr) in enumerate(
+            zip(
+                tqdm(
+                    frame_timestamps_ns,
+                    desc="video frames",
+                    total=len(frame_timestamps_ns) if config.max_frames is None else config.max_frames,
+                ),
+                video_reader,
+                strict=False,
+            )
         ):
+            if ts_idx == config.max_frames and config.max_frames is not None:
+                break
             rr.set_time("video_time", duration=1e-9 * ts)
             rgb: UInt8[ndarray, "h w 3"] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-            outputs: list[dict] = pipe.predict(rgb)
+            outputs: list[Detection] = pipe.predict(rgb)
             for output in outputs:
                 handedness: Literal["left", "right"] = "right" if output["is_right"] == 1.0 else "left"
-                hand_bbox = output["hand_bbox"]
-                hand_keypoints = output["wilor_preds"]["pred_keypoints_2d"]
-                xyz = output["wilor_preds"]["pred_keypoints_3d"]
+                hand_bbox: list[float] = output["hand_bbox"]
+                wilor_preds: WilorPreds = output["wilor_preds"]
+                hand_keypoints: Float[ndarray, "1 n_joints=21 2"] = wilor_preds["pred_keypoints_2d"]
+                xyz: Float[ndarray, "1 n_joints=21 3"] = wilor_preds["pred_keypoints_3d"]
                 rr.log(
                     f"{handedness}_xyz",
                     rr.Points3D(
@@ -109,15 +125,3 @@ def main(config: WilorConfig):
                         colors=(0, 255, 0),
                     ),
                 )
-
-    # print(outputs)
-    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    # hand_bboxs = []
-    # is_rights = []
-    # for i in range(len(outputs)):
-    #     hand_bboxs.append(outputs[i]["hand_bbox"])
-    #     is_rights.append(outputs[i]["is_right"])
-    # for _ in range(100):
-    #     t0 = time.time()
-    #     outputs = pipe.predict_with_bboxes(image, np.array(hand_bboxs), is_rights)
-    #     print(time.time() - t0)
