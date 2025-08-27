@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import TypedDict
 
 import cv2
 import numpy as np
