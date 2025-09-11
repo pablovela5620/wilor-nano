@@ -32,8 +32,8 @@ class DetectionResult:
 
 @dataclass
 class HandDetectorConfig:
-    hf_wilor_repo_id: str
     verbose: bool
+    hf_wilor_repo_id: str = "pablovela5620/wilor-nano"
     pretrained_dir: Path = Path.cwd() / "pretrained_models"
 
 
