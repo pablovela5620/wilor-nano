@@ -51,15 +51,17 @@ libcurand-dev = "*"
 libcusolver-dev = "*"
 cusparselt = "*"
 libnvjitlink = "*"
+# cuda126 end
 dill = ">=0.4.0,<0.5"
 py-opencv = ">=4.12.0,<5"
-# cuda126 end
+
 
 [tool.pixi.pypi-dependencies]
 wilor_nano = { path = ".", editable = true }
 simplecv = { git = "https://github.com/pablovela5620/simplecv.git", tag = "v0.5.1" }
 torch = { version = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128" }
 torchvision = { version = ">=0.20.1", index = "https://download.pytorch.org/whl/cu128" }
+rtmlib = { git = "https://github.com/pablovela5620/rtmlib.git", rev = "98bca2193c39b349034b280803b54c9ee58f7c68" }
 
 [tool.pixi.feature.dev.dependencies]
 beartype = ">=0.19.0,<0.20"

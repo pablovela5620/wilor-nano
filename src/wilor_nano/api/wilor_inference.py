@@ -112,6 +112,24 @@ def main(config: WilorConfig):
             rr.set_time("video_time", duration=1e-9 * ts)
             rgb: UInt8[ndarray, "h w 3"] = cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
             outputs: list[Detection] = pipe.predict(rgb)
+
+            # check if left or right hand are in outputs if not clear them in rerun
+            # After populating `outputs` and logging hands for this frame:
+            has_right: bool = any(o.get("is_right", 0.0) == 1.0 for o in outputs)
+            has_left: bool = any(o.get("is_right", 0.0) == 0.0 for o in outputs)
+
+            # Clear right-hand logs if no right hand this frame
+            if not has_right:
+                rr.log("video/right_box", rr.Clear(recursive=True))
+                rr.log("video/right_keypoints", rr.Clear(recursive=True))
+                rr.log("right_xyz", rr.Clear(recursive=True))
+
+            # Clear left-hand logs if no left hand this frame
+            if not has_left:
+                rr.log("video/left_box", rr.Clear(recursive=True))
+                rr.log("video/left_keypoints", rr.Clear(recursive=True))
+                rr.log("left_xyz", rr.Clear(recursive=True))
+
             for output in outputs:
                 handedness: Literal["left", "right"] = "right" if output["is_right"] == 1.0 else "left"
                 hand_bbox: list[float] = output["hand_bbox"]
