@@ -125,34 +125,62 @@ class KeypointResults:
 
 
 class RTMPoseHandKeypointDetector:
+    """RTMPose-based detector for 2D hand keypoints and confidences.
+
+    This class uses RTMPose to estimate 2D keypoint locations and per-keypoint
+    confidence scores from a hand region-of-interest (ROI). It assumes single-person
+    detection and does not perform multi-person disambiguation or tracking.
+
+    Overview:
+    - RTMPose provides 2D keypoints and confidences, which are used alongside
+      WiLor's 3D geometry in the parent detector.
+    - Outputs are not canonicalized by handedness; mirroring is handled upstream.
+
+    Conventions:
+    - Arrays are annotated with jaxtyping to document dtype and shape.
+    - In dev environments, package-wide runtime type checking may be enabled via
+      `beartype_this_package()` to validate annotated shapes/dtypes at runtime.
+    """
+
     def __init__(self, cfg: HandKeypointDetectorConfig) -> None:
         self.cfg: HandKeypointDetectorConfig = cfg
         self.init_model()
 
     def init_model(self):
+        """Initialize the RTMPose model for hand keypoint detection."""
         url: str = "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-hand5_pt-aic-coco_210e-256x256-74fb594_20230320.zip"
         pose_input_size: tuple[int, int] = (256, 256)
         self.hand_model = RTMPose(onnx_model=url, model_input_size=pose_input_size, device="cuda")
 
-    def __call__(self, image: np.ndarray, xyxy: list[list[float]] | None = None) -> KeypointResults:
+    def __call__(
+        self,
+        rgb_hw3: UInt8[ndarray, "H W 3"],
+        xyxy: Float[np.ndarray, "1 4"],
+        handedness: Literal["left", "right"],
+    ) -> KeypointResults:
         """Estimate 2D keypoints and confidences for a single hand ROI.
 
-        - Single-person assumption: returns batch=1 results.
-        - If `xyxy` is provided, restricts detection to that ROI; otherwise,
-          runs detection on the full image.
+        This method mirrors the signature of WilorHandKeypointDetector's __call__
+        for consistency, though rescale_factor and handedness are not used here
+        as RTMPose operates directly on the provided ROI without scaling or
+        handedness adjustments.
+
+        Steps:
+        - Run RTMPose on the specified ROI to get 2D keypoints and scores.
+        - Return results in a KeypointResults structure, with MANO fields set to None.
 
         Args:
-            image: RGB image array.
-            xyxy: Optional list of bounding boxes [[x1, y1, x2, y2]].
+            rgb_hw3: Original RGB image, uint8 shape (H, W, 3).
+            xyxy: Bounding box for the hand (1, 4) [x1, y1, x2, y2].
+            handedness: "left" or "right"; not used in this detector.
 
         Returns:
             KeypointResults with keypoints_2d (shape (1, 21, 2)), scores (shape (1, 21)),
             and MANO fields set to None.
         """
-        if xyxy is None:
-            xyxy = []
+        xyxy_list: list[list[float]] = xyxy.tolist() if xyxy is not None else []
         rtmpose_output: tuple[Float[ndarray, "batch=1 n_kpts=21 2"], Float[ndarray, "batch=1 n_kpts=21"]] = (
-            self.hand_model(image, bboxes=xyxy)
+            self.hand_model(rgb_hw3, bboxes=xyxy_list)
         )
         keypoints: Float[ndarray, "batch=1 n_kpts=21 2"] = rtmpose_output[0]
         scores: Float[ndarray, "batch=1 n_kpts=21"] = rtmpose_output[1]
