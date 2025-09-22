@@ -48,6 +48,7 @@ class HandKeypointDetectorConfig:
     pretrained_dir: Path = Path.cwd() / "pretrained_models"
     focal_length: int = 5000
     image_size: int = 256
+    use_keypoints_results: bool = True
 
 
 class RefineNetNPOutput(TypedDict):
@@ -107,6 +108,22 @@ class FinalWilorPred:
     """2D keypoint confidence scores, shape (1, 21)."""
 
 
+@serde
+class KeypointResults:
+    """Keypoint detection results for a single hand (batch=1)."""
+
+    keypoints_2d: Float[ndarray, "batch=1 n_joints=21 2"]
+    """2D keypoints in pixel coordinates, shape (1, 21, 2)."""
+    scores: Float[ndarray, "batch=1 n_joints=21"]
+    """Confidence scores for each keypoint, shape (1, 21)."""
+    global_orient: Float[ndarray, "batch=1 1 3"] | None
+    """Canonicalized root orientation (axis-angle), shape (1, 1, 3)."""
+    hand_pose: Float[ndarray, "batch=1 15 3"] | None
+    """Canonicalized joint rotations (axis-angle), shape (1, 15, 3)."""
+    betas: Float[ndarray, "batch=1 10"] | None
+    """MANO shape coefficients, shape (1, 10)."""
+
+
 class RTMPoseHandKeypointDetector:
     def __init__(self, cfg: HandKeypointDetectorConfig) -> None:
         self.cfg: HandKeypointDetectorConfig = cfg
@@ -117,9 +134,7 @@ class RTMPoseHandKeypointDetector:
         pose_input_size: tuple[int, int] = (256, 256)
         self.hand_model = RTMPose(onnx_model=url, model_input_size=pose_input_size, device="cuda")
 
-    def __call__(
-        self, image: np.ndarray, xyxy: list[list[float]] | None = None
-    ) -> tuple[Float[ndarray, "batch=1 n_kpts=21 2"], Float[ndarray, "batch=1 n_kpts=21"]]:
+    def __call__(self, image: np.ndarray, xyxy: list[list[float]] | None = None) -> KeypointResults:
         """Estimate 2D keypoints and confidences for a single hand ROI.
 
         - Single-person assumption: returns batch=1 results.
@@ -131,9 +146,8 @@ class RTMPoseHandKeypointDetector:
             xyxy: Optional list of bounding boxes [[x1, y1, x2, y2]].
 
         Returns:
-            (keypoints_2d, scores):
-              - keypoints_2d: shape (1, 21, 2), pixel coordinates
-              - scores: shape (1, 21), per-keypoint confidence in [0,1]
+            KeypointResults with keypoints_2d (shape (1, 21, 2)), scores (shape (1, 21)),
+            and MANO fields set to None.
         """
         if xyxy is None:
             xyxy = []
@@ -142,7 +156,13 @@ class RTMPoseHandKeypointDetector:
         )
         keypoints: Float[ndarray, "batch=1 n_kpts=21 2"] = rtmpose_output[0]
         scores: Float[ndarray, "batch=1 n_kpts=21"] = rtmpose_output[1]
-        return keypoints, scores
+        return KeypointResults(
+            keypoints_2d=keypoints,
+            scores=scores,
+            global_orient=None,
+            hand_pose=None,
+            betas=None,
+        )
 
 
 class WilorHandKeypointDetector:
@@ -200,7 +220,7 @@ class WilorHandKeypointDetector:
         xyxy: Float[np.ndarray, "1 4"],
         handedness: Literal["left", "right"],
         rescale_factor: float = 2.5,
-    ) -> FinalWilorPred:
+    ) -> FinalWilorPred | KeypointResults:
         """Run WiLor on a single-hand crop and return canonicalized outputs.
 
         Steps:
@@ -222,6 +242,21 @@ class WilorHandKeypointDetector:
             MANO parameters, 3D joints/vertices, camera, 2D projections, and
             2D confidences (from RTMPose).
         """
+        # estimate the confidence of the keypoints using the rtmpose hand model
+        rtmhand_results: KeypointResults = self.hand_confidence_model(rgb_hw3, xyxy.tolist())
+
+        confidence_2d: Float[ndarray, "batch=1 n_kpts=21"] = rtmhand_results.scores
+        # TODO implement a mechanism to ignore low-confidence keypoints and not continue with the higher cost wilor prediction
+        # I can currently think of two:
+        # 1. If more than X keypoints are below a certain threshold, skip wilor prediction and return empty results
+        # 2. If the average confidence is below a certain threshold, skip wilor prediction
+        # For now, we will just log a warning if the average confidence is below a certain threshold
+        avg_confidence: float = float(confidence_2d.mean())
+        if avg_confidence < 0.3 and self.cfg.verbose:
+            print(
+                f"Warning: Low average keypoint confidence ({avg_confidence:.2f}) for {handedness} hand at bbox {xyxy}. WiLor prediction may be unreliable."
+            )
+
         center: Float[ndarray, "1 2"] = (xyxy[:, 2:4] + xyxy[:, 0:2]) / 2.0
         scale: Float[ndarray, "1 2"] = rescale_factor * (xyxy[:, 2:4] - xyxy[:, 0:2])
         img_patches_list: list[ndarray] = []
@@ -267,12 +302,6 @@ class WilorHandKeypointDetector:
         raw_wilor_preds: RawWilorPred = from_dict(
             RawWilorPred, {k: v.cpu().float().numpy() for k, v in wilor_output_raw.items()}
         )
-        # estimate the confidence of the keypoints using the rtmpose hand model
-        conf_tuple: tuple[Float[ndarray, "batch=1 n_kpts=21 2"], Float[ndarray, "batch=1 n_kpts=21"]] = (
-            self.hand_confidence_model(rgb_hw3, xyxy.tolist())
-        )
-
-        confidence_2d: Float[ndarray, "batch=1 n_kpts=21"] = conf_tuple[1]
 
         final_preds: FinalWilorPred = self.post_process(
             raw_wilor_preds=raw_wilor_preds,
@@ -282,6 +311,15 @@ class WilorHandKeypointDetector:
             img_size=img_size,
             confidence_2d=confidence_2d,
         )
+
+        if self.cfg.use_keypoints_results:
+            return KeypointResults(
+                keypoints_2d=final_preds.pred_keypoints_2d,
+                scores=final_preds.confidence_2d,
+                global_orient=final_preds.global_orient,
+                hand_pose=final_preds.hand_pose,
+                betas=final_preds.betas,
+            )
 
         return final_preds
 
