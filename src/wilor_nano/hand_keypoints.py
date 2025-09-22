@@ -156,7 +156,7 @@ class RTMPoseHandKeypointDetector:
         self,
         rgb_hw3: UInt8[ndarray, "H W 3"],
         xyxy: Float[np.ndarray, "1 4"],
-        handedness: Literal["left", "right"],
+        handedness: Literal["left", "right"] | None = None,
     ) -> KeypointResults:
         """Estimate 2D keypoints and confidences for a single hand ROI.
 
