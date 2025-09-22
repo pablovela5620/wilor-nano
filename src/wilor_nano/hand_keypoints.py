@@ -271,7 +271,7 @@ class WilorHandKeypointDetector:
             2D confidences (from RTMPose).
         """
         # estimate the confidence of the keypoints using the rtmpose hand model
-        rtmhand_results: KeypointResults = self.hand_confidence_model(rgb_hw3, xyxy.tolist())
+        rtmhand_results: KeypointResults = self.hand_confidence_model(rgb_hw3, xyxy)
 
         confidence_2d: Float[ndarray, "batch=1 n_kpts=21"] = rtmhand_results.scores
         # TODO implement a mechanism to ignore low-confidence keypoints and not continue with the higher cost wilor prediction
