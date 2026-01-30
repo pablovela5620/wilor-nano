@@ -205,21 +205,23 @@ class WilorHandKeypointDetector:
         self.cfg.pretrained_dir.mkdir(parents=True, exist_ok=True)
         mano_mean_path: Path = self.cfg.pretrained_dir / "pretrained_models" / "mano_mean_params.npz"
         if not mano_mean_path.exists():
-            hf_hub_download(
+            downloaded_path: str = hf_hub_download(
                 repo_id=self.cfg.hf_wilor_repo_id,
                 subfolder="pretrained_models",
                 filename="mano_mean_params.npz",
                 local_dir=self.cfg.pretrained_dir,
             )
+            mano_mean_path = Path(downloaded_path)
 
         mano_model_path: Path = self.cfg.pretrained_dir / "pretrained_models" / "mano_clean" / "MANO_RIGHT.pkl"
         if not mano_model_path.exists():
-            hf_hub_download(
+            downloaded_path = hf_hub_download(
                 repo_id=self.cfg.hf_wilor_repo_id,
                 subfolder="pretrained_models/mano_clean",
                 filename="MANO_RIGHT.pkl",
                 local_dir=self.cfg.pretrained_dir,
             )
+            mano_model_path = Path(downloaded_path)
         self.wilor_model = WiLor(
             mano_root_dir=mano_model_path.parent,
             mano_mean_path=mano_mean_path,
@@ -228,12 +230,13 @@ class WilorHandKeypointDetector:
         )
         wilor_model_path: Path = self.cfg.pretrained_dir / "pretrained_models" / "wilor_final.ckpt"
         if not wilor_model_path.exists():
-            hf_hub_download(
+            downloaded_path = hf_hub_download(
                 repo_id=self.cfg.hf_wilor_repo_id,
                 subfolder="pretrained_models",
                 filename="wilor_final.ckpt",
                 local_dir=self.cfg.pretrained_dir,
             )
+            wilor_model_path = Path(downloaded_path)
         # wilor model for keypoint predictions, does not provide confidence values, so these are gotten from the rtmpose hand model
         self.wilor_model.load_state_dict(torch.load(wilor_model_path)["state_dict"], strict=False)
         self.wilor_model.eval()

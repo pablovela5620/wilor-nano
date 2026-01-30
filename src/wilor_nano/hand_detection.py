@@ -48,12 +48,13 @@ class HandDetector:
         self.cfg.pretrained_dir.mkdir(parents=True, exist_ok=True)
         yolo_model_path: Path = self.cfg.pretrained_dir / "detector.pt"
         if not yolo_model_path.exists():
-            hf_hub_download(
+            downloaded_path: str = hf_hub_download(
                 repo_id=self.cfg.hf_wilor_repo_id,
                 subfolder="pretrained_models",
                 filename="detector.pt",
                 local_dir=self.cfg.pretrained_dir,
             )
+            yolo_model_path = Path(downloaded_path)
         self.hand_detector: YOLO = YOLO(yolo_model_path)
         self.hand_detector.to(self.device)
 

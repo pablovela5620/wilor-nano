@@ -68,20 +68,22 @@ class WiLorHandPose3dEstimationPipeline:
         wilor_pretrained_dir.mkdir(parents=True, exist_ok=True)
         mano_mean_path: Path = wilor_pretrained_dir / "pretrained_models" / "mano_mean_params.npz"
         if not mano_mean_path.exists():
-            hf_hub_download(
+            downloaded_path: str = hf_hub_download(
                 repo_id=self.WILOR_MINI_REPO_ID,
                 subfolder="pretrained_models",
                 filename="mano_mean_params.npz",
                 local_dir=wilor_pretrained_dir,
             )
+            mano_mean_path = Path(downloaded_path)
         mano_model_path: Path = wilor_pretrained_dir / "pretrained_models" / "mano_clean" / "MANO_RIGHT.pkl"
         if not mano_model_path.exists():
-            hf_hub_download(
+            downloaded_path = hf_hub_download(
                 repo_id=self.WILOR_MINI_REPO_ID,
                 subfolder="pretrained_models/mano_clean",
                 filename="MANO_RIGHT.pkl",
                 local_dir=wilor_pretrained_dir,
             )
+            mano_model_path = Path(downloaded_path)
         self.wilor_model = WiLor(
             mano_root_dir=mano_model_path.parent,
             mano_mean_path=mano_mean_path,
@@ -90,24 +92,26 @@ class WiLorHandPose3dEstimationPipeline:
         )
         wilor_model_path: Path = wilor_pretrained_dir / "pretrained_models" / "wilor_final.ckpt"
         if not wilor_model_path.exists():
-            hf_hub_download(
+            downloaded_path = hf_hub_download(
                 repo_id=self.WILOR_MINI_REPO_ID,
                 subfolder="pretrained_models",
                 filename="wilor_final.ckpt",
                 local_dir=wilor_pretrained_dir,
             )
+            wilor_model_path = Path(downloaded_path)
         self.wilor_model.load_state_dict(torch.load(wilor_model_path)["state_dict"], strict=False)
         self.wilor_model.eval()
         self.wilor_model.to(self.device, dtype=self.dtype)
 
         yolo_model_path: Path = wilor_pretrained_dir / "pretrained_models" / "detector.pt"
         if not yolo_model_path.exists():
-            hf_hub_download(
+            downloaded_path = hf_hub_download(
                 repo_id=self.WILOR_MINI_REPO_ID,
                 subfolder="pretrained_models",
                 filename="detector.pt",
                 local_dir=wilor_pretrained_dir,
             )
+            yolo_model_path = Path(downloaded_path)
         self.hand_detector: YOLO = YOLO(yolo_model_path)
         self.hand_detector.to(self.device)
 
