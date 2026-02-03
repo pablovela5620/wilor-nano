@@ -94,7 +94,7 @@ def main(config: WilorConfig):
     if config.video_path:
         video_reader = VideoReader(filename=config.video_path)
         frame_timestamps_ns: Int[ndarray, "num_frames"] = log_video(
-            video_path=config.video_path, video_log_path=Path("video"), timeline="video_time"
+            config.video_path, video_log_path=Path("video"), timeline="video_time"
         )
         for ts_idx, (ts, bgr) in enumerate(
             zip(
