@@ -299,7 +299,7 @@ class WilorHandKeypointDetector:
         flip: bool = handedness == "left"
         box_center: Float[ndarray, "2"] = center[0]
 
-        cvimg: Float[np.ndarray, "h w 3"] = rgb_hw3.copy().astype(np.float32)
+        cvimg: Float[ndarray, "h w 3"] = rgb_hw3.copy().astype(np.float32)
         # Blur image to avoid aliasing artifacts
         downsampling_factor: float = (bbox_size * 1.0) / patch_width
         downsampling_factor: float = downsampling_factor / 2.0
