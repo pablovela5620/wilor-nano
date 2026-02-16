@@ -16,10 +16,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import torch
-from torch import Tensor
 from huggingface_hub import hf_hub_download
 from jaxtyping import Float, Int, UInt8
 from numpy import ndarray
+from torch import Tensor
 from ultralytics import YOLO
 from ultralytics.engine.results import Boxes, Results
 
@@ -33,7 +33,7 @@ class DetectionResult:
 
 @dataclass
 class HandDetectorConfig:
-    verbose: bool
+    verbose: bool = False
     hf_wilor_repo_id: str = "pablovela5620/wilor-nano"
     pretrained_dir: Path = Path.cwd() / "pretrained_models"
 
@@ -87,8 +87,8 @@ class HandDetector:
         # Vectorized tensors on model device
         # NOTE: Boxes.xyxy returns Tensor | ndarray; on GPU it's always Tensor
         xyxy: Float[Tensor, "n 4"] = torch.as_tensor(b.xyxy)
-        conf_t: Tensor = torch.as_tensor(b.conf) # (N,1) or (N,)
-        cls_t_raw: Tensor = torch.as_tensor(b.cls) # (N,1) or (N,)
+        conf_t: Tensor = torch.as_tensor(b.conf)  # (N,1) or (N,)
+        cls_t_raw: Tensor = torch.as_tensor(b.cls)  # (N,1) or (N,)
 
         # Normalize shapes and dtypes
         conf: Float[Tensor, "n"] = conf_t.view(-1)
