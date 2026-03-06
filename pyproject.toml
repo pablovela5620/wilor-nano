@@ -3,11 +3,15 @@ authors = [{ name = "pablo vela", email = "pablovela5620@gmail.com" }]
 dependencies = [
     "timm",
     "einops",
-    "ultralytics==8.3.162", # needed to avoid weights_only bug in pytorch 2.7+
+    "ultralytics==8.3.162",       # needed to avoid weights_only bug in pytorch 2.7+
     "opencv-python",
     "huggingface_hub",
     "scikit-image",
-    "roma", "onnxruntime-gpu>=1.23.2,<2",
+    "roma",
+    "onnxruntime-gpu>=1.23.2,<2",
+    "rerun-sdk<0.29.0",
+    "gradio_rerun<0.29.0",
+    "daggr>=0.7.0",
 ]
 name = "wilor-nano"
 requires-python = ">= 3.11"
@@ -54,19 +58,21 @@ libnvjitlink = "*"
 # cuda126 end
 dill = ">=0.4.0,<0.5"
 py-opencv = ">=4.12.0,<5"
+av = ">=16.0.1,<17"
 
 
 [tool.pixi.pypi-dependencies]
 wilor_nano = { path = ".", editable = true }
-simplecv = { git = "https://github.com/pablovela5620/simplecv.git", tag = "v0.5.1" }
+simplecv = { git = "https://github.com/pablovela5620/simplecv.git", rev = "31cc852429cc292959f30c0277010ec57caa6caf" }
 torch = { version = ">=2.7.0", index = "https://download.pytorch.org/whl/cu128" }
 torchvision = { version = ">=0.20.1", index = "https://download.pytorch.org/whl/cu128" }
 rtmlib = { git = "https://github.com/pablovela5620/rtmlib.git", rev = "98bca2193c39b349034b280803b54c9ee58f7c68" }
 
 [tool.pixi.feature.dev.dependencies]
-beartype = ">=0.19.0,<0.20"
+beartype = ">=0.22.9,<0.23"
 ruff = ">=0.12.7,<0.13"
 pytest = "*"
+pyrefly = ">=0.51.0,<0.52"
 
 [tool.pixi.environments]
 dev = { features = ["dev"] }

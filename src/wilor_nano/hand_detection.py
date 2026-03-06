@@ -19,6 +19,7 @@ import torch
 from huggingface_hub import hf_hub_download
 from jaxtyping import Float, Int, UInt8
 from numpy import ndarray
+from torch import Tensor
 from ultralytics import YOLO
 from ultralytics.engine.results import Boxes, Results
 
@@ -32,7 +33,7 @@ class DetectionResult:
 
 @dataclass
 class HandDetectorConfig:
-    verbose: bool
+    verbose: bool = False
     hf_wilor_repo_id: str = "pablovela5620/wilor-nano"
     pretrained_dir: Path = Path.cwd() / "pretrained_models"
 
@@ -47,6 +48,8 @@ class HandDetector:
 
         self.cfg.pretrained_dir.mkdir(parents=True, exist_ok=True)
         yolo_model_path: Path = self.cfg.pretrained_dir / "detector.pt"
+
+        # Download model if not exists
         if not yolo_model_path.exists():
             downloaded_path: str = hf_hub_download(
                 repo_id=self.cfg.hf_wilor_repo_id,
@@ -66,6 +69,7 @@ class HandDetector:
         - Uses vectorized access via Results.boxes to avoid per-box CPU transfers.
         - Returns at most one left and one right bbox (shape (1,4) each) if present.
         """
+        # from ultralytics detector
         res: Results = self.hand_detector(
             rgb_hw3,
             conf=hand_conf,
@@ -81,27 +85,28 @@ class HandDetector:
             return out
 
         # Vectorized tensors on model device
-        xyxy: Float[torch.Tensor, "n 4"] = b.xyxy  # (N,4)
-        conf_t: torch.Tensor = b.conf  # (N,1) or (N,)
-        cls_t_raw: torch.Tensor = b.cls  # (N,1) or (N,)
+        # NOTE: Boxes.xyxy returns Tensor | ndarray; on GPU it's always Tensor
+        xyxy: Float[Tensor, "n 4"] = torch.as_tensor(b.xyxy)
+        conf_t: Tensor = torch.as_tensor(b.conf)  # (N,1) or (N,)
+        cls_t_raw: Tensor = torch.as_tensor(b.cls)  # (N,1) or (N,)
 
         # Normalize shapes and dtypes
-        conf: Float[torch.Tensor, "n"] = conf_t.view(-1)
-        cls: Int[torch.Tensor, "n"] = cls_t_raw.view(-1).to(torch.int64)
+        conf: Float[Tensor, "n"] = conf_t.view(-1)
+        cls: Int[Tensor, "n"] = cls_t_raw.view(-1).to(torch.int64)
 
         # Left hand (class 0)
-        m_left: torch.Tensor = (cls == 0) & (conf >= hand_conf)
+        m_left: Tensor = (cls == 0) & (conf >= hand_conf)
         if torch.any(m_left):
             idx_rel_left: int = int(torch.argmax(conf[m_left]).item())
-            left_xyxy_t: Float[torch.Tensor, "4"] = xyxy[m_left][idx_rel_left]
+            left_xyxy_t: Float[Tensor, "4"] = xyxy[m_left][idx_rel_left]
             left_xyxy: Float[ndarray, "1 4"] = left_xyxy_t.unsqueeze(0).detach().cpu().numpy()
             out.left_xyxy = left_xyxy
 
         # Right hand (class 1)
-        m_right: torch.Tensor = (cls == 1) & (conf >= hand_conf)
+        m_right: Tensor = (cls == 1) & (conf >= hand_conf)
         if torch.any(m_right):
             idx_rel_right: int = int(torch.argmax(conf[m_right]).item())
-            right_xyxy_t: Float[torch.Tensor, "4"] = xyxy[m_right][idx_rel_right]
+            right_xyxy_t: Float[Tensor, "4"] = xyxy[m_right][idx_rel_right]
             right_xyxy: Float[ndarray, "1 4"] = right_xyxy_t.unsqueeze(0).detach().cpu().numpy()
             out.right_xyxy = right_xyxy
 
